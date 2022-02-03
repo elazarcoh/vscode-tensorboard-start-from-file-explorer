@@ -3,6 +3,10 @@
 	"displayName": "Start Tensorboard from File Explorer",
 	"description": "",
 	"version": "0.0.1",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/elazarcoh/vscode-tensorboard-start-from-file-explorer"
+	},
 	"engines": {
 		"vscode": "^1.63.0"
 	},
