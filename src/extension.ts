@@ -10,8 +10,6 @@ interface TensorboardArgs {
 }
 const DEFAULT_OPTIONS = {
 	logDir: 'logs',
-	host: 'localhost',
-	port: 6006
 };
 const configuarableToArgName: Record<keyof TensorboardArgs, string> = {
 	host: '--host',
@@ -32,6 +30,7 @@ class TerminalService implements vscode.Disposable {
 		if (!this.terminal) {
 			this.terminal = vscode.window.createTerminal({
 				name: 'Tensorboard',
+				hideFromUser: false,
 			} as vscode.TerminalOptions);
 			this.disposables.push(
 				vscode.window.onDidCloseTerminal(terminal => {
@@ -84,8 +83,33 @@ async function startTensorboardInTerminal(options: Partial<Config>) {
 	const terminal = await terminalService().ensureTerminal();
 
 	terminal.sendText(command);
-	const url = `http://${config.host}:${config.port}`;
-	return url;
+	if (config.host && config.port) {
+		const url = `http://${config.host}:${config.port}`;
+		return url;
+	}
+	else {
+		return undefined;
+	}
+}
+
+async function startTensorboardUsingPythonExtension(logdir: string) {
+
+	const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+	if (!pythonExtension) {
+		vscode.window.showErrorMessage('Python extension is not installed');
+		return;
+	}
+
+	await pythonExtension.activate();
+
+	let commandName = 'python.launchTensorBoard';
+	let hasCommand = await vscode.commands.getCommands(true).then(commands => commands.includes(commandName));
+
+	if (!hasCommand) {
+		vscode.window.showErrorMessage('Missing command "python.launchTensorBoard". Maybe the python extension is outdated or is not compatible anymore');
+	}
+
+	return vscode.commands.executeCommand(commandName, logdir);
 }
 
 
@@ -105,9 +129,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				await pythonExtension.activate();
 
-				const run = async (): Promise<any> => {
+				const runUsingTerminal = async (): Promise<any> => {
 					const url = await startTensorboardInTerminal({ logDir: p.fsPath });
-					if(!url) {
+					if (!url) {
 						return;
 					}
 					// if (await urlExist(url)) { // Not supported yet
@@ -127,7 +151,14 @@ export async function activate(context: vscode.ExtensionContext) {
 					// }
 				}
 
-				return run();
+				const runUsingPythonExtension = async (): Promise<any> => {
+					return startTensorboardUsingPythonExtension(p.fsPath);
+				}
+
+				return runUsingPythonExtension().catch(async (err) => {
+					console.error(err);
+					return runUsingTerminal();
+				});
 			}
 		));
 
